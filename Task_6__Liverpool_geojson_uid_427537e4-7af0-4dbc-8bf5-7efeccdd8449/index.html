@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liverpool WebGIS - Interactive Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --surface: rgba(255, 255, 255, 0.92);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--text-main);
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .header {
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            padding: 1rem 1.5rem;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            pointer-events: auto;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header p {
+            margin: 5px 0 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* LAYER PANEL */
+        .layer-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.13);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            padding: 14px 14px 10px;
+            min-width: 210px;
+        }
+
+        .layer-panel-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            padding-left: 2px;
+        }
+
+        .layer-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 9px 12px;
+            margin-bottom: 6px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+            color: #475569;
+        }
+
+        .layer-btn:last-child {
+            margin-bottom: 0;
+        }
+
+        .layer-btn .btn-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 13px;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .layer-btn .btn-label {
+            flex: 1;
+            text-align: left;
+        }
+
+        /* Count badge */
+        .layer-btn .btn-count {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: #e2e8f0;
+            color: #64748b;
+            transition: all 0.2s ease;
+            margin-right: 4px;
+        }
+
+        .layer-btn .btn-status {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+            transition: all 0.2s ease;
+        }
+
+        /* Active state */
+        .layer-btn.active {
+            background: white;
+            color: #0f172a;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .layer-btn.active .btn-status {
+            color: white;
+        }
+
+        /* Inactive state */
+        .layer-btn:not(.active) .btn-icon {
+            filter: grayscale(1);
+            opacity: 0.45;
+        }
+
+        .layer-btn:not(.active) .btn-status {
+            background: #e2e8f0;
+            color: #94a3b8;
+        }
+
+        .layer-btn:not(.active) .btn-count {
+            opacity: 0.5;
+        }
+
+        .layer-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Per-category colors */
+        .layer-btn[data-layer="stadium"].active {
+            border-color: #fecaca;
+        }
+
+        .layer-btn[data-layer="stadium"].active .btn-status {
+            background: #ef4444;
+        }
+
+        .layer-btn[data-layer="stadium"].active .btn-count {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .layer-btn[data-layer="stadium"] .btn-icon {
+            background: #ef4444;
+        }
+
+        .layer-btn[data-layer="college"].active {
+            border-color: #bfdbfe;
+        }
+
+        .layer-btn[data-layer="college"].active .btn-status {
+            background: #3b82f6;
+        }
+
+        .layer-btn[data-layer="college"].active .btn-count {
+            background: #dbeafe;
+            color: #3b82f6;
+        }
+
+        .layer-btn[data-layer="college"] .btn-icon {
+            background: #3b82f6;
+        }
+
+        .layer-btn[data-layer="police"].active {
+            border-color: #a7f3d0;
+        }
+
+        .layer-btn[data-layer="police"].active .btn-status {
+            background: #10b981;
+        }
+
+        .layer-btn[data-layer="police"].active .btn-count {
+            background: #d1fae5;
+            color: #10b981;
+        }
+
+        .layer-btn[data-layer="police"] .btn-icon {
+            background: #10b981;
+        }
+
+        .layer-btn[data-layer="airport"].active {
+            border-color: #ddd6fe;
+        }
+
+        .layer-btn[data-layer="airport"].active .btn-status {
+            background: #8b5cf6;
+        }
+
+        .layer-btn[data-layer="airport"].active .btn-count {
+            background: #ede9fe;
+            color: #8b5cf6;
+        }
+
+        .layer-btn[data-layer="airport"] .btn-icon {
+            background: #8b5cf6;
+        }
+
+        /* Divider + total row */
+        .panel-divider {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 10px 0 8px;
+        }
+
+        .panel-total {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .panel-total span {
+            background: #f1f5f9;
+            border-radius: 20px;
+            padding: 2px 10px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        /* Legend */
+        .info.legend {
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            padding: 14px 16px;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .info.legend h4 {
+            margin: 0 0 10px;
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.55;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 7px;
+            font-weight: 500;
+            justify-content: space-between;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-left {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .legend-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+            flex-shrink: 0;
+        }
+
+        .legend-count {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 20px;
+        }
+
+        .icon-stadium {
+            background: #ef4444;
+        }
+
+        .icon-college {
+            background: #3b82f6;
+        }
+
+        .icon-police {
+            background: #10b981;
+        }
+
+        .icon-airport {
+            background: #8b5cf6;
+        }
+
+        .count-stadium {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .count-college {
+            background: #dbeafe;
+            color: #3b82f6;
+        }
+
+        .count-police {
+            background: #d1fae5;
+            color: #10b981;
+        }
+
+        .count-airport {
+            background: #ede9fe;
+            color: #8b5cf6;
+        }
+
+        /* Popup */
+        .custom-popup .leaflet-popup-content-wrapper {
+            border-radius: 14px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .custom-popup .leaflet-popup-content {
+            margin: 16px;
+        }
+
+        .popup-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #0f172a;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .popup-attr {
+            margin: 6px 0;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .popup-attr .lbl {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            background: #f1f5f9;
+            padding: 2px 7px;
+            border-radius: 5px;
+            white-space: nowrap;
+        }
+
+        /* Zoom */
+        .leaflet-control-zoom {
+            border: none !important;
+            border-radius: 12px !important;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+            margin-top: 10px !important;
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--surface) !important;
+            color: #0f172a !important;
+            border: none !important;
+            width: 34px !important;
+            height: 34px !important;
+            line-height: 34px !important;
+            font-size: 18px !important;
+            backdrop-filter: blur(12px);
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: #f1f5f9 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="ui-overlay">
+        <div class="header">
+            <h1><i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i> Liverpool WebGIS</h1>
+            <p>Interactive Mapping of Key City Locations</p>
+        </div>
+    </div>
+
+    <!-- Layer Panel -->
+    <div class="layer-panel" id="layerPanel">
+        <div class="layer-panel-title">Layer Control</div>
+
+        <button class="layer-btn active" data-layer="stadium">
+            <div class="btn-icon"><i class="fa-solid fa-futbol"></i></div>
+            <span class="btn-label">Stadiums</span>
+            <span class="btn-count" id="count-stadium">0</span>
+            <span class="btn-status">ON</span>
+        </button>
+
+        <button class="layer-btn active" data-layer="college">
+            <div class="btn-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+            <span class="btn-label">Colleges</span>
+            <span class="btn-count" id="count-college">0</span>
+            <span class="btn-status">ON</span>
+        </button>
+
+        <button class="layer-btn active" data-layer="police">
+            <div class="btn-icon"><i class="fa-solid fa-building-shield"></i></div>
+            <span class="btn-label">Police</span>
+            <span class="btn-count" id="count-police">0</span>
+            <span class="btn-status">ON</span>
+        </button>
+
+        <button class="layer-btn active" data-layer="airport">
+            <div class="btn-icon"><i class="fa-solid fa-plane"></i></div>
+            <span class="btn-label">Airports</span>
+            <span class="btn-count" id="count-airport">0</span>
+            <span class="btn-status">ON</span>
+        </button>
+
+        <hr class="panel-divider">
+        <div class="panel-total">
+            <span style="color:var(--text-muted); background:none; padding:0;">Total Lokasi</span>
+            <span id="count-total">0</span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // ============================================================
+        //  GEOJSON DATA — EMBEDDED
+        // ============================================================
+        const liverpoolData = {
+            "type": "FeatureCollection",
+            "features": [
+                // STADIUMS
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9608, 53.4308] },
+                    "properties": { "name": "Anfield", "leisure": "stadium", "capacity": 61000, "team": "Liverpool FC" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9664, 53.4388] },
+                    "properties": { "name": "Goodison Park", "leisure": "stadium", "capacity": 39572, "team": "Everton FC" }
+                },
+                // UNIVERSITIES
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9655, 53.4059] },
+                    "properties": { "name": "University of Liverpool", "amenity": "university", "type": "Russell Group University" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9770, 53.4042] },
+                    "properties": { "name": "Liverpool John Moores University", "amenity": "university", "type": "Public University" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9562, 53.4005] },
+                    "properties": { "name": "Liverpool Hope University", "amenity": "university", "type": "University College" }
+                },
+                // POLICE
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9773, 53.4093] },
+                    "properties": { "name": "Liverpool City Centre Police Station", "amenity": "police" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9442, 53.4216] },
+                    "properties": { "name": "Wavertree Police Station", "amenity": "police" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-3.0031, 53.4312] },
+                    "properties": { "name": "Kirkdale Police Station", "amenity": "police" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.9230, 53.3898] },
+                    "properties": { "name": "Garston Police Station", "amenity": "police" }
+                },
+                // AIRPORT
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [-2.8497, 53.3336] },
+                    "properties": { "name": "Liverpool John Lennon Airport", "aeroway": "aerodrome", "code": "LPL", "type": "International Airport" }
+                }
+            ]
+        };
+
+        // ============================================================
+        //  MAP INIT
+        // ============================================================
+        const map = L.map('map', { zoomControl: false }).setView([53.4084, -2.9916], 12);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // ICONS
+        const createCustomIcon = (color, iconClass) => L.divIcon({
+            className: '',
+            html: `<div style="
+                background:${color}; width:36px; height:36px; border-radius:50%;
+                display:flex; align-items:center; justify-content:center;
+                color:white; border:2.5px solid rgba(255,255,255,0.9);
+                box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer;
+            "><i class="${iconClass}" style="font-size:14px;"></i></div>`,
+            iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20]
+        });
+
+        const icons = {
+            stadium: createCustomIcon('#ef4444', 'fa-solid fa-futbol'),
+            college: createCustomIcon('#3b82f6', 'fa-solid fa-graduation-cap'),
+            police: createCustomIcon('#10b981', 'fa-solid fa-building-shield'),
+            airport: createCustomIcon('#8b5cf6', 'fa-solid fa-plane')
+        };
+
+        // LAYERS
+        const stadiumLayer = L.layerGroup();
+        const collegeLayer = L.layerGroup();
+        const policeLayer = L.layerGroup();
+        const airportLayer = L.layerGroup();
+
+        const layerMap = {
+            stadium: stadiumLayer,
+            college: collegeLayer,
+            police: policeLayer,
+            airport: airportLayer
+        };
+
+        // Count tracker
+        const counts = { stadium: 0, college: 0, police: 0, airport: 0 };
+
+        // POPUP
+        const buildPopup = (iconHtml, title, attrs) => {
+            let html = `<div class="popup-title">${iconHtml} ${title || '—'}</div>`;
+            for (const [k, v] of Object.entries(attrs)) {
+                if (v) html += `<div class="popup-attr"><span class="lbl">${k}</span> ${v}</div>`;
+            }
+            return html;
+        };
+
+        // LOAD DATA & COUNT
+        (() => {
+            // Stadiums
+            const stadiumFeatures = liverpoolData.features.filter(f => f.properties.leisure === 'stadium');
+            counts.stadium = stadiumFeatures.length;
+            L.geoJSON({ type: 'FeatureCollection', features: stadiumFeatures }, {
+                pointToLayer: (f, ll) => L.marker(ll, { icon: icons.stadium }),
+                onEachFeature: (f, layer) => {
+                    const p = f.properties;
+                    layer.bindPopup(buildPopup(
+                        '<i class="fa-solid fa-futbol" style="color:#ef4444"></i>', p.name,
+                        {
+                            'Kapasitas': p.capacity ? p.capacity.toLocaleString() + ' kursi' : null,
+                            'Tim': p.team,
+                            'Total Stadion': counts.stadium + ' lokasi di Liverpool'
+                        }
+                    ), { className: 'custom-popup', maxWidth: 280 });
+                }
+            }).addTo(stadiumLayer);
+
+            // Universities
+            const collegeFeatures = liverpoolData.features.filter(f => f.properties.amenity === 'university');
+            counts.college = collegeFeatures.length;
+            L.geoJSON({ type: 'FeatureCollection', features: collegeFeatures }, {
+                pointToLayer: (f, ll) => L.marker(ll, { icon: icons.college }),
+                onEachFeature: (f, layer) => {
+                    const p = f.properties;
+                    layer.bindPopup(buildPopup(
+                        '<i class="fa-solid fa-graduation-cap" style="color:#3b82f6"></i>', p.name,
+                        {
+                            'Tipe': p.type,
+                            'Total Universitas': counts.college + ' institusi di Liverpool'
+                        }
+                    ), { className: 'custom-popup', maxWidth: 280 });
+                }
+            }).addTo(collegeLayer);
+
+            // Police
+            const policeFeatures = liverpoolData.features.filter(f => f.properties.amenity === 'police');
+            counts.police = policeFeatures.length;
+            L.geoJSON({ type: 'FeatureCollection', features: policeFeatures }, {
+                pointToLayer: (f, ll) => L.marker(ll, { icon: icons.police }),
+                onEachFeature: (f, layer) => {
+                    const p = f.properties;
+                    layer.bindPopup(buildPopup(
+                        '<i class="fa-solid fa-building-shield" style="color:#10b981"></i>', p.name,
+                        {
+                            'Tipe': 'Kantor Polisi',
+                            'Total Polsek': counts.police + ' kantor di Liverpool'
+                        }
+                    ), { className: 'custom-popup', maxWidth: 280 });
+                }
+            }).addTo(policeLayer);
+
+            // Airport
+            const airportFeatures = liverpoolData.features.filter(f => f.properties.aeroway === 'aerodrome');
+            counts.airport = airportFeatures.length;
+            L.geoJSON({ type: 'FeatureCollection', features: airportFeatures }, {
+                pointToLayer: (f, ll) => L.marker(ll, { icon: icons.airport }),
+                onEachFeature: (f, layer) => {
+                    const p = f.properties;
+                    layer.bindPopup(buildPopup(
+                        '<i class="fa-solid fa-plane" style="color:#8b5cf6"></i>', p.name,
+                        {
+                            'Kode IATA': p.code,
+                            'Tipe': p.type,
+                            'Total Bandara': counts.airport + ' di Liverpool'
+                        }
+                    ), { className: 'custom-popup', maxWidth: 280 });
+                }
+            }).addTo(airportLayer);
+
+            // Update count badges in panel
+            const total = counts.stadium + counts.college + counts.police + counts.airport;
+            document.getElementById('count-stadium').textContent = counts.stadium;
+            document.getElementById('count-college').textContent = counts.college;
+            document.getElementById('count-police').textContent = counts.police;
+            document.getElementById('count-airport').textContent = counts.airport;
+            document.getElementById('count-total').textContent = total;
+        })();
+
+        // All layers ON by default
+        Object.values(layerMap).forEach(l => l.addTo(map));
+
+        // TOGGLE BUTTON LOGIC
+        document.querySelectorAll('.layer-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.layer;
+                const layer = layerMap[key];
+                const isActive = btn.classList.contains('active');
+                const statusEl = btn.querySelector('.btn-status');
+
+                if (isActive) {
+                    map.removeLayer(layer);
+                    btn.classList.remove('active');
+                    statusEl.textContent = 'OFF';
+                } else {
+                    map.addLayer(layer);
+                    btn.classList.add('active');
+                    statusEl.textContent = 'ON';
+                }
+            });
+        });
+
+        // LEGEND
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = () => {
+            const div = L.DomUtil.create('div', 'info legend');
+            const total = counts.stadium + counts.college + counts.police + counts.airport;
+            div.innerHTML = `
+                <h4>Map Legend</h4>
+                <div class="legend-item">
+                    <div class="legend-left">
+                        <div class="legend-icon icon-stadium"><i class="fa-solid fa-futbol"></i></div>
+                        Stadium
+                    </div>
+                    <span class="legend-count count-stadium">${counts.stadium}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-left">
+                        <div class="legend-icon icon-college"><i class="fa-solid fa-graduation-cap"></i></div>
+                        College / Univ.
+                    </div>
+                    <span class="legend-count count-college">${counts.college}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-left">
+                        <div class="legend-icon icon-police"><i class="fa-solid fa-building-shield"></i></div>
+                        Police Station
+                    </div>
+                    <span class="legend-count count-police">${counts.police}</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-left">
+                        <div class="legend-icon icon-airport"><i class="fa-solid fa-plane"></i></div>
+                        Airport
+                    </div>
+                    <span class="legend-count count-airport">${counts.airport}</span>
+                </div>
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:8px 0 6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;font-weight:700;color:#0f172a;">
+                    <span style="color:#64748b;font-weight:600;">Total</span>
+                    <span style="background:#f1f5f9;padding:2px 10px;border-radius:20px;">${total} lokasi</span>
+                </div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+    </script>
+</body>
+
+</html>
